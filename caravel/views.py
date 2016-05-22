@@ -1348,6 +1348,7 @@ class Caravel(BaseCaravelView):
         sql = request.form.get('sql')
         database_id = request.form.get('database_id')
         schema = request.form.get('schema')
+        mydb = session.query(models.Database).filter_by(id=database_id).first()
 
         if not (self.can_access(
                 'all_datasource_access', 'all_datasource_access') or
@@ -1369,7 +1370,6 @@ class Caravel(BaseCaravelView):
             return None
         return json.dumps(
             data, default=utils.json_int_dttm_ser, allow_nan=False)
-
 
     @has_access
     @expose("/refresh_datasources/")
