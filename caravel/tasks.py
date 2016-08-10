@@ -35,7 +35,7 @@ def get_tables():
     pass
 
 
-def add_limit_to_the_query(sql, limit, eng):
+def add_limit_to_the_sql(sql, limit, eng):
     # Treat as single sql statement in case of failure.
     sql_statements = [sql]
     try:
@@ -99,7 +99,7 @@ def get_session():
 
 
 @celery_app.task
-def get_sql_results(database_id, sql, user_id, tmp_table_name="", schema=None):
+def get_sql_results(query_id):
     """Executes the sql query returns the results.
 
     :param database_id: integer
@@ -112,108 +112,104 @@ def get_sql_results(database_id, sql, user_id, tmp_table_name="", schema=None):
     # Create a separate session, reusing the db.session leads to the
     # concurrency issues.
     session = get_session()
+    query = session.query(models.Query).filter_by(id=query_id).first()
     try:
         db_to_query = (
-            session.query(models.Database).filter_by(id=database_id).first()
+            session.query(models.Database).filter_by(id=query.database_id)
+            .first()
         )
     except Exception as e:
+        query.status = models.QueryStatus.FAILED
+        query.error_message = utils.error_msg_from_exception(e)
+        session.commit()
         return {
-            'error': utils.error_msg_from_exception(e),
-            'success': False,
+            'error': query.error_message,
+            'status': query.status,
         }
     if not db_to_query:
+        query.status = models.QueryStatus.FAILED
+        query.error_message = "Database with id {0} is missing.".format(
+            query.database_id)
+        session.commit()
         return {
-            'error': "Database with id {0} is missing.".format(database_id),
-            'success': False,
+            'error': query.error_message,
+            'status': query.status,
         }
 
-    # TODO(bkyryliuk): provide a way for the user to name the query.
     # TODO(bkyryliuk): run explain query to derive the tables and fill in the
     #                  table_ids
     # TODO(bkyryliuk): check the user permissions
-    # TODO(bkyryliuk): store the tab name in the query model
-    limit = app.config.get('SQL_MAX_ROW', None)
-    start_time = datetime.now()
-    if not tmp_table_name:
-        tmp_table_name = 'tmp.{}_table_{}'.format(user_id, start_time)
-    query = models.Query(
-        user_id=user_id,
-        database_id=database_id,
-        limit=limit,
-        name='{}'.format(start_time),
-        sql=sql,
-        start_time=start_time,
-        tmp_table_name=tmp_table_name,
-        status=models.QueryStatus.IN_PROGRESS,
-    )
-    session.add(query)
-    session.commit()
-    query_result = get_sql_results_as_dict(
-        db_to_query, sql, query.tmp_table_name, schema=schema)
+    if not query.tmp_table_name:
+        query.tmp_table_name = 'tmp_{}_table_{}'.format(
+            query.user_id, query.start_time.strftime('%Y_%m_%d_%H_%M_%S'))
+
+    query_result = get_sql_results_as_dict(db_to_query, query)
     query.end_time = datetime.now()
-    if query_result['success']:
-        query.status = models.QueryStatus.FINISHED
-    else:
-        query.status = models.QueryStatus.FAILED
     session.commit()
     # TODO(bkyryliuk): return the tmp table  / query_id
     return query_result
 
 
-# TODO(bkyryliuk): merge the changes made in the carapal first
-#                   before merging this PR.
-def get_sql_results_as_dict(db_to_query, sql, tmp_table_name, schema=None):
+def get_sql_results_as_dict(db_to_query, query):
     """Get the SQL query results from the give session and db connection.
 
     :param sql: string, query that will be executed
     :param db_to_query: models.Database to query, cannot be None
-    :param tmp_table_name: name of the table for CTA
+    :param query: models.Query, has to have tmp_table_name and query_id
     :param schema: string, name of the schema (used in presto)
     :return: (dataframe, boolean), results and the status
     """
-    eng = db_to_query.get_sqla_engine(schema=schema)
-    sql = sql.strip().strip(';')
+    eng = db_to_query.get_sqla_engine(schema=query.schema)
+    sql = query.sql.strip().strip(';')
     # TODO(bkyryliuk): fix this case for multiple statements
-    if app.config.get('SQL_MAX_ROW'):
-        sql = add_limit_to_the_query(
-            sql, app.config.get("SQL_MAX_ROW"), eng)
+    if query.limit:
+        sql = add_limit_to_the_sql(sql, query.limit, eng)
 
     cta_used = False
-    if (app.config.get('SQL_SELECT_AS_CTA') and
-            db_to_query.select_as_create_table_as and is_query_select(sql)):
-        # TODO(bkyryliuk): figure out if the query is select query.
-        sql = create_table_as(sql, tmp_table_name)
+    if query.select_as_cta and is_query_select(sql):
+        sql = create_table_as(sql, query.tmp_table_name)
         cta_used = True
 
+    print("LOGGGGGG")
+    print(str(query.name))
+    print(str(query.sql))
+    print(str(query.select_as_cta))
+    print(str(db_to_query.select_as_create_table_as))
     if cta_used:
         try:
+            # TODO(bkyryluk) async update the query status
             eng.execute(sql)
+            query.status = models.QueryStatus.FINISHED
             return {
-                'tmp_table': tmp_table_name,
-                'success': True,
+                'query_id': query.id,
+                'status': query.status,
             }
         except Exception as e:
+            query.error_message = utils.error_msg_from_exception(e)
+            query.status = models.QueryStatus.FAILED
             return {
-                'error': utils.error_msg_from_exception(e),
-                'success': False,
+                'error': query.error_message,
+                'status': query.status,
             }
 
     # otherwise run regular SQL query.
     # TODO(bkyryliuk): rewrite into eng.execute as queries different from
     #                  select should be permitted too.
     try:
-        df = db_to_query.get_df(sql, schema)
+        df = db_to_query.get_df(sql, query.schema)
         df = df.fillna(0)
+        query.status = models.QueryStatus.FINISHED
         return {
             'columns': [c for c in df.columns],
             'data': df.to_dict(orient='records'),
-            'success': True,
+            'status': query.status,
         }
-
     except Exception as e:
+        query.error_message = utils.error_msg_from_exception(e)
+        query.status = models.QueryStatus.FAILED
         return {
-            'error': utils.error_msg_from_exception(e),
-            'success': False,
+            'error': query.error_message,
+            'status': models.QueryStatus.FAILED,
         }
 
 

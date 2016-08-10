@@ -286,7 +286,7 @@ class CoreTests(CaravelTestCase):
         )
         resp = self.client.post(
             '/caravel/sql_json/',
-            data=dict(database_id=dbid, sql=sql),
+            data=dict(database_id=dbid, sql=sql, select_as_create_as=False),
         )
         self.logout()
         return json.loads(resp.data.decode('utf-8'))

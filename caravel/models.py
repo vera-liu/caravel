@@ -379,7 +379,7 @@ class Database(Model, AuditMixinNullable):
     sqlalchemy_uri = Column(String(1024))
     password = Column(EncryptedType(String(1024), config.get('SECRET_KEY')))
     cache_timeout = Column(Integer)
-    select_as_create_table_as = Column(Boolean, default=True)
+    select_as_create_table_as = Column(Boolean, default=False)
     extra = Column(Text, default=textwrap.dedent("""\
     {
         "metadata_params": {},
@@ -1729,18 +1729,22 @@ class Query(Model):
     database_id = Column(Integer, ForeignKey('dbs.id'), nullable=False)
 
     # Store the tmp table into the DB only if the user asks for it.
-    tmp_table_name = Column(String(64))
+    tmp_table_name = Column(String(256))
     user_id = Column(Integer, ForeignKey('ab_user.id'), nullable=True)
 
     # models.QueryStatus
     status = Column(String(16))
 
-    name = Column(String(64))
+    name = Column(String(256))
+    tab_name = Column(String(256))
+    schema = Column(String(256))
     sql = Column(Text)
     # Could be configured in the caravel config
     limit = Column(Integer)
+    select_as_cta = Column(Boolean)
 
     # 1..100
     progress = Column(Integer)
+    error_message = Column(Text)
     start_time = Column(DateTime)
     end_time = Column(DateTime)
