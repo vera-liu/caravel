@@ -878,7 +878,14 @@ class SliceAsync(SliceModelView):  # noqa
         'slice_link': _('Slice'),
     }
 
+class SliceView(SliceModelView):
+    list_columns = [
+        'id', 'slice_name', 'viz_type', 'creator',
+        'datasource_id', 'datasource_link',
+        'slice_url', 'slice_link', 'edit_url']
+
 appbuilder.add_view_no_menu(SliceAsync)
+appbuilder.add_view_no_menu(SliceView)
 
 
 class SliceAddView(SliceModelView):  # noqa
@@ -2773,6 +2780,7 @@ class Superset(BaseSupersetView):
             'superset/sqllab.html',
             bootstrap_data=json.dumps(d, default=utils.json_iso_dttm_ser)
         )
+
 appbuilder.add_view_no_menu(Superset)
 
 if config['DRUID_IS_ACTIVE']:
