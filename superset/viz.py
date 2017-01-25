@@ -195,12 +195,17 @@ class BaseViz(object):
             dttm_col = self.datasource.get_col(query_obj['granularity'])
             if dttm_col:
                 timestamp_format = dttm_col.python_date_format
+            sql, engine = self.datasource.get_sql(**query_obj)
+            self.query = sql
+            self.results = self.datasource.query(sql, engine)
+        else:
+            self.results = self.datasource.query(**query_obj)
+            self.query = self.results.query
 
         # The datasource here can be different backend but the interface is common
-        self.results = self.datasource.query(**query_obj)
         self.status = self.results.status
         self.error_message = self.results.error_message
-        self.query = self.results.query
+
 
         df = self.results.df
         # Transform the timestamp we received from database to pandas supported

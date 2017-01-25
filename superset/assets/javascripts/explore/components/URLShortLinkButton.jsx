@@ -4,7 +4,7 @@ import CopyToClipboard from './../../components/CopyToClipboard';
 import { getShortUrl } from '../../../utils/common';
 
 const propTypes = {
-  slice: PropTypes.object.isRequired,
+  slice: PropTypes.object,
 };
 
 export default class URLShortLinkButton extends React.Component {

@@ -433,6 +433,7 @@ const visTypes = {
   },
 
   big_number_total: {
+    label: 'Big Number',
     controlPanelSections: [
       {
         label: null,

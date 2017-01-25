@@ -3,7 +3,7 @@ import CopyToClipboard from './../../components/CopyToClipboard';
 import { Popover, OverlayTrigger } from 'react-bootstrap';
 
 const propTypes = {
-  slice: PropTypes.object.isRequired,
+  slice: PropTypes.object,
 };
 
 export default class EmbedCodeButton extends React.Component {

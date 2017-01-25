@@ -23,7 +23,6 @@ const propTypes = {
   viz_type: PropTypes.string.isRequired,
   height: PropTypes.string.isRequired,
   containerId: PropTypes.string.isRequired,
-  query: PropTypes.string,
   column_formats: PropTypes.object,
   chartStatus: PropTypes.string,
   isStarred: PropTypes.bool.isRequired,
@@ -43,8 +42,9 @@ class ChartContainer extends React.PureComponent {
 
   renderViz() {
     const mockSlice = this.getMockedSliceObject();
+    const queryResponse = this.props.queryResponse;
     try {
-      visMap[this.props.viz_type](mockSlice, this.props.queryResponse);
+      visMap[this.props.viz_type](mockSlice, queryResponse);
       this.setState({ mockSlice });
     } catch (e) {
       this.props.actions.chartRenderingFailed(e);
@@ -63,7 +63,7 @@ class ChartContainer extends React.PureComponent {
   getMockedSliceObject() {
     const props = this.props;
     return {
-      viewSqlQuery: props.query,
+      viewSqlQuery: props.queryResponse.query,
       containerId: props.containerId,
       selector: this.state.selector,
       container: {
@@ -211,7 +211,7 @@ class ChartContainer extends React.PureComponent {
                   state={CHART_STATUS_MAP[this.props.chartStatus]}
                   style={{ fontSize: '10px', marginRight: '5px' }}
                 />
-                {this.state.mockSlice &&
+                {this.props.queryResponse &&
                   <ExploreActionButtons
                     slice={this.state.mockSlice}
                     canDownload={this.props.can_download}
@@ -240,7 +240,6 @@ function mapStateToProps(state) {
     can_download: state.can_download,
     chartUpdateStartTime: state.chartUpdateStartTime,
     chartUpdateEndTime: state.chartUpdateEndTime,
-    query: state.viz.query,
     column_formats: state.viz.column_formats,
     chartStatus: state.chartStatus,
     isStarred: state.isStarred,

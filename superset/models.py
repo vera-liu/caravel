@@ -1233,7 +1233,7 @@ class SqlaTable(Model, Queryable, AuditMixinNullable, ImportMixin):
             con=engine
         )
 
-    def query(  # sqla
+    def get_sql(  # sqla
             self, groupby, metrics,
             granularity,
             from_dttm, to_dttm,
@@ -1257,7 +1257,6 @@ class SqlaTable(Model, Queryable, AuditMixinNullable, ImportMixin):
 
         cols = {col.column_name: col for col in self.columns}
         metrics_dict = {m.metric_name: m for m in self.metrics}
-        qry_start_dttm = datetime.now()
 
         if not granularity and is_timeseries:
             raise Exception(_(
@@ -1416,6 +1415,11 @@ class SqlaTable(Model, Queryable, AuditMixinNullable, ImportMixin):
                 engine, compile_kwargs={"literal_binds": True},),
         )
         sql = sqlparse.format(sql, reindent=True)
+        return sql, engine
+
+    def query(  # sqla
+            self, sql, engine):
+        qry_start_dttm = datetime.now()
         status = QueryStatus.SUCCESS
         error_message = None
         df = None

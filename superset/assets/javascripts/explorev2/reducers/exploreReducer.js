@@ -82,17 +82,22 @@ export const exploreReducer = function (state, action) {
         });
     },
     [actions.CHART_RENDERING_FAILED]() {
+      // If chart alert already exists (when update failed)
+      // Use original update failure error
+      const chartAlert = state.chartAlert ||
+        'An error occurred while rendering the visualization: ' + action.error;
       return Object.assign({}, state, {
         chartStatus: 'failed',
-        chartAlert: 'An error occurred while rendering the visualization: ' + action.error,
+        chartAlert,
       });
     },
     [actions.CHART_UPDATE_FAILED]() {
+      const responseText = JSON.parse(action.queryResponse.responseText);
       return Object.assign({}, state, {
         chartStatus: 'failed',
-        chartAlert: action.queryResponse.error,
+        chartAlert: responseText.error,
         chartUpdateEndTime: now(),
-        queryResponse: action.queryResponse,
+        queryResponse: responseText,
       });
     },
     [actions.UPDATE_CHART_STATUS]() {
